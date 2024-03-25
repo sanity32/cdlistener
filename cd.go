@@ -62,6 +62,11 @@ func (cd *Cd[T]) poll() Result[T] {
 	for {
 		iteration++
 		fmt.Println("i", iteration)
+
+		if cd.stopper.Flag {
+			cd.finalize(Result[T]{StoppedByUser: true})
+		}
+
 		if cd.finalized {
 			return cd.lastResult
 		}
