@@ -6,24 +6,26 @@ import (
 
 func New[T comparable](duration, repollInterval time.Duration, fnPoll func() T, fnInterrupt func() InterruptCode) *Cd[T] {
 	return &Cd[T]{
-		duration:             duration,
-		repollInterval:       repollInterval,
-		C:                    make(chan Result[T], 1),
-		fnPoll:               fnPoll,
-		fnPrematureInterrupt: fnInterrupt,
+		duration:              duration,
+		repollInterval:        repollInterval,
+		C:                     make(chan Result[T], 1),
+		fnPoll:                fnPoll,
+		fnPrematureInterrupt:  fnInterrupt,
+		MaxSameRepollsToStall: 5,
 	}
 }
 
 type Cd[T comparable] struct {
-	C                    chan Result[T]
-	lastResult           Result[T]
-	startAt              time.Time
-	duration             time.Duration
-	repollInterval       time.Duration
-	fnPoll               func() T
-	fnPrematureInterrupt func() InterruptCode
-	stopper              _Stopper
-	finalized            bool
+	C                     chan Result[T]
+	MaxSameRepollsToStall int
+	lastResult            Result[T]
+	startAt               time.Time
+	duration              time.Duration
+	repollInterval        time.Duration
+	fnPoll                func() T
+	fnPrematureInterrupt  func() InterruptCode
+	stopper               _Stopper
+	finalized             bool
 }
 
 func (cd *Cd[T]) Stop() {
@@ -57,7 +59,7 @@ func (cd *Cd[T]) Start() *Cd[T] {
 
 func (cd *Cd[T]) poll() Result[T] {
 	var iteration int
-	history := NewHistory[T](5)
+	history := NewHistory[T](cd.MaxSameRepollsToStall)
 	for {
 		iteration++
 		if cd.stopper.Flag {
