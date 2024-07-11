@@ -7,13 +7,13 @@ import (
 
 func TestCd_Expired(t *testing.T) {
 	i := 1
-	var interruptCode int
+	var interruptCode InterruptCode
 
 	cd := New[int](
 		time.Second*30,
 		time.Second,
 		func() int { return i },
-		func() int { return interruptCode },
+		func() InterruptCode { return interruptCode },
 	).Start()
 
 	time.AfterFunc(time.Second*1, func() {

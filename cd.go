@@ -1,11 +1,10 @@
 package cdlistener
 
 import (
-	"fmt"
 	"time"
 )
 
-func New[T comparable](duration, repollInterval time.Duration, fnPoll func() T, fnInterrupt func() int) *Cd[T] {
+func New[T comparable](duration, repollInterval time.Duration, fnPoll func() T, fnInterrupt func() InterruptCode) *Cd[T] {
 	return &Cd[T]{
 		duration:             duration,
 		repollInterval:       repollInterval,
@@ -22,7 +21,7 @@ type Cd[T comparable] struct {
 	duration             time.Duration
 	repollInterval       time.Duration
 	fnPoll               func() T
-	fnPrematureInterrupt func() int
+	fnPrematureInterrupt func() InterruptCode
 	stopper              _Stopper
 	finalized            bool
 }
@@ -61,8 +60,6 @@ func (cd *Cd[T]) poll() Result[T] {
 	history := NewHistory[T](5)
 	for {
 		iteration++
-		fmt.Println("i", iteration)
-
 		if cd.stopper.Flag {
 			cd.finalize(Result[T]{StoppedByUser: true})
 		}
@@ -70,13 +67,16 @@ func (cd *Cd[T]) poll() Result[T] {
 		if cd.finalized {
 			return cd.lastResult
 		}
+
 		if code := cd.fnPrematureInterrupt(); code != 0 {
 			return Result[T]{InterruptCode: code}
 		}
+
 		history.Push(cd.fnPoll())
 		if history.StreakAll() {
 			return Result[T]{CdStopped: true}
 		}
+
 		time.Sleep(cd.repollInterval)
 	}
 }
