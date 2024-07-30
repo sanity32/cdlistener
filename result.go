@@ -1,7 +1,7 @@
 package cdlistener
 
 type Result[T any] struct {
-	Value         T
+	LastValue     T
 	InterruptCode InterruptCode
 	CdStopped     bool
 	StoppedByUser bool

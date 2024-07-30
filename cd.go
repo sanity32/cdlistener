@@ -15,12 +15,12 @@ func DefaultResultChan[T comparable]() chan Result[T] {
 }
 
 // @deprecated, From() method is preferred
-func New[T comparable](duration, repollInterval time.Duration, fnPoll func() T, fnInterrupt func() InterruptCode) *Cd[T] {
+func New[T comparable](duration, repollInterval time.Duration, fnPoll func() T, fnScan func() InterruptCode) *Cd[T] {
 	return &Cd[T]{
 		duration:              duration,
 		repollInterval:        repollInterval,
 		C:                     DefaultResultChan[T](),
-		host:                  BasicHoster[T]{FnPoll: fnPoll, FnInterrupt: func(pi PollInfo[T]) InterruptCode { return fnInterrupt() }},
+		host:                  NewHostEntity(fnPoll, func(pi PollInfo[T]) InterruptCode { return fnScan() }),
 		maxSameRepollsToStall: DefaultMaxSameRepollsToStall,
 	}
 }
@@ -99,7 +99,7 @@ func (cd *Cd[T]) poll() Result[T] {
 		history.Push(last)
 
 		// if code := cd.fnPrematureInterrupt(); code != 0
-		if code := cd.host.CdInterrupt(PollInfo[T]{
+		if code := cd.host.CdScan(PollInfo[T]{
 			Iteration: iteration,
 			LastValue: last,
 			Logs:      &history,
