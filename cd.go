@@ -19,9 +19,10 @@ func New[T comparable](duration, repollInterval time.Duration, fnPoll func() T, 
 	return &Cd[T]{
 		duration:              duration,
 		repollInterval:        repollInterval,
-		C:                     DefaultResultChan[T](),
 		host:                  NewHostEntity(fnPoll, func(pi PollInfo[T]) InterruptCode { return fnScan() }),
 		maxSameRepollsToStall: DefaultMaxSameRepollsToStall,
+		// C:                     DefaultResultChan[T](),
+
 	}
 }
 
@@ -31,7 +32,7 @@ func From[T comparable](host Host[T]) *Cd[T] {
 		duration:              DefaultDuration,
 		repollInterval:        DefaultRepollInterval,
 		maxSameRepollsToStall: DefaultMaxSameRepollsToStall,
-		C:                     DefaultResultChan[T](),
+		// C:                     DefaultResultChan[T](),
 	}
 }
 
@@ -73,6 +74,7 @@ func (cd Cd[T]) Expired() bool {
 }
 
 func (cd *Cd[T]) Start() *Cd[T] {
+	cd.C = DefaultResultChan[T]()
 	cd.startAt = time.Now()
 	go func() {
 		r := cd.poll()
