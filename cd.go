@@ -4,16 +4,39 @@ import (
 	"time"
 )
 
+var (
+	DefaultDuration              = time.Minute * 3
+	DefaultRepollInterval        = time.Second * 2
+	DefaultMaxSameRepollsToStall = 7
+)
+
+func DefaultResultChan[T comparable]() chan Result[T] {
+	return make(chan Result[T], 1)
+}
+
+// @deprecated, From() method is preferred
 func New[T comparable](duration, repollInterval time.Duration, fnPoll func() T, fnInterrupt func() InterruptCode) *Cd[T] {
 	return &Cd[T]{
 		duration:              duration,
 		repollInterval:        repollInterval,
-		C:                     make(chan Result[T], 1),
-		fnPoll:                fnPoll,
-		fnPrematureInterrupt:  fnInterrupt,
-		maxSameRepollsToStall: 7,
+		C:                     DefaultResultChan[T](),
+		host:                  BasicHoster[T]{FnPoll: fnPoll, FnInterrupt: func(pi PollInfo[T]) InterruptCode { return fnInterrupt() }},
+		maxSameRepollsToStall: DefaultMaxSameRepollsToStall,
 	}
 }
+
+func From[T comparable](host Host[T]) *Cd[T] {
+	return &Cd[T]{
+		host:                  host,
+		duration:              DefaultDuration,
+		repollInterval:        DefaultRepollInterval,
+		maxSameRepollsToStall: DefaultMaxSameRepollsToStall,
+		C:                     DefaultResultChan[T](),
+	}
+}
+
+// fnPoll:                fnPoll,
+// fnPrematureInterrupt:  fnInterrupt,
 
 type Cd[T comparable] struct {
 	C                     chan Result[T]
@@ -22,10 +45,11 @@ type Cd[T comparable] struct {
 	startAt               time.Time
 	duration              time.Duration
 	repollInterval        time.Duration
-	fnPoll                func() T
-	fnPrematureInterrupt  func() InterruptCode
-	stopper               _Stopper
-	finalized             bool
+	// fnPoll                func() T
+	// fnPrematureInterrupt  func() InterruptCode
+	host      Host[T]
+	stopper   _Stopper
+	finalized bool
 }
 
 func (cd *Cd[T]) Stop() {
@@ -70,11 +94,19 @@ func (cd *Cd[T]) poll() Result[T] {
 			return cd.lastResult
 		}
 
-		if code := cd.fnPrematureInterrupt(); code != 0 {
+		// last := cd.fnPoll()
+		last := cd.host.CdValue()
+		history.Push(last)
+
+		// if code := cd.fnPrematureInterrupt(); code != 0
+		if code := cd.host.CdInterrupt(PollInfo[T]{
+			Iteration: iteration,
+			LastValue: last,
+			Logs:      &history,
+		}); code != 0 {
 			return Result[T]{InterruptCode: code}
 		}
 
-		history.Push(cd.fnPoll())
 		if history.StreakAll() {
 			return Result[T]{CdStopped: true}
 		}
@@ -85,5 +117,15 @@ func (cd *Cd[T]) poll() Result[T] {
 
 func (cd *Cd[T]) MaxSameRepollsToStall(value int) *Cd[T] {
 	cd.maxSameRepollsToStall = value
+	return cd
+}
+
+func (cd *Cd[T]) Duration(value time.Duration) *Cd[T] {
+	cd.duration = value
+	return cd
+}
+
+func (cd *Cd[T]) RepollInterval(value time.Duration) *Cd[T] {
+	cd.repollInterval = value
 	return cd
 }

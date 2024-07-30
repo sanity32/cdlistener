@@ -22,6 +22,13 @@ func (h History[T]) Set(n int, v T) {
 	h[n] = v
 }
 
+func (h History[T]) Last() T {
+	if len(h) == 0 {
+		return h.Zero()
+	}
+	return h[0]
+}
+
 func (h *History[T]) init() {
 	if len(*h) < MIN_HISTORY_LENGTH {
 		fmt.Println("min history", MIN_HISTORY_LENGTH)
@@ -42,7 +49,7 @@ func (h History[T]) Push(v T) History[T] {
 
 func (h History[T]) IsLastZero() bool {
 	h.init()
-	return h.Get(0) == h.Zero()
+	return h.Last() == h.Zero()
 }
 
 func (h History[T]) Streak(n int) bool {
