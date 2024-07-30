@@ -11,13 +11,13 @@ func New[T comparable](duration, repollInterval time.Duration, fnPoll func() T, 
 		C:                     make(chan Result[T], 1),
 		fnPoll:                fnPoll,
 		fnPrematureInterrupt:  fnInterrupt,
-		MaxSameRepollsToStall: 5,
+		maxSameRepollsToStall: 7,
 	}
 }
 
 type Cd[T comparable] struct {
 	C                     chan Result[T]
-	MaxSameRepollsToStall int
+	maxSameRepollsToStall int
 	lastResult            Result[T]
 	startAt               time.Time
 	duration              time.Duration
@@ -59,7 +59,7 @@ func (cd *Cd[T]) Start() *Cd[T] {
 
 func (cd *Cd[T]) poll() Result[T] {
 	var iteration int
-	history := NewHistory[T](cd.MaxSameRepollsToStall)
+	history := NewHistory[T](cd.maxSameRepollsToStall)
 	for {
 		iteration++
 		if cd.stopper.Flag {
@@ -81,4 +81,9 @@ func (cd *Cd[T]) poll() Result[T] {
 
 		time.Sleep(cd.repollInterval)
 	}
+}
+
+func (cd *Cd[T]) MaxSameRepollsToStall(value int) *Cd[T] {
+	cd.maxSameRepollsToStall = value
+	return cd
 }
