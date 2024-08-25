@@ -1,6 +1,7 @@
 package cdlistener
 
 import (
+	"context"
 	"time"
 )
 
@@ -41,6 +42,7 @@ func From[T comparable](host Host[T]) *Cd[T] {
 
 type Cd[T comparable] struct {
 	C                     chan Result[T]
+	ctx                   context.Context
 	maxSameRepollsToStall int
 	lastResult            Result[T]
 	startAt               time.Time
@@ -51,6 +53,18 @@ type Cd[T comparable] struct {
 	host      Host[T]
 	stopper   _Stopper
 	finalized bool
+}
+
+func (cd *Cd[T]) Ctx() context.Context {
+	if r := cd.ctx; r != nil {
+		return r
+	}
+	return context.Background()
+}
+
+func (cd *Cd[T]) SetCtx(ctx context.Context) *Cd[T] {
+	cd.ctx = ctx
+	return cd
 }
 
 func (cd *Cd[T]) Stop() {
@@ -73,6 +87,7 @@ func (cd Cd[T]) Expired() bool {
 	return time.Now().After(cd.startAt.Add(cd.duration))
 }
 
+// Deprecated: use Watch() with context instead
 func (cd *Cd[T]) Start() *Cd[T] {
 	cd.C = DefaultResultChan[T]()
 	cd.startAt = time.Now()
@@ -83,9 +98,18 @@ func (cd *Cd[T]) Start() *Cd[T] {
 	return cd
 }
 
+func (cd *Cd[T]) Watch(ctx context.Context) <-chan Result[T] {
+	cd.SetCtx(ctx)
+	return cd.Start().C
+}
+
 func (cd *Cd[T]) poll() Result[T] {
 	var iteration int
 	history := NewHistory[T](cd.maxSameRepollsToStall)
+	go func() {
+		<-cd.ctx.Done()
+		cd.Stop()
+	}()
 	for {
 		iteration++
 		if cd.stopper.Flag {
@@ -113,6 +137,11 @@ func (cd *Cd[T]) poll() Result[T] {
 			return Result[T]{CdStopped: true}
 		}
 
+		select {
+		case <-cd.Ctx().Done():
+			return Result[T]{CdStopped: true}
+		case <-time.NewTimer(cd.repollInterval).C:
+		}
 		time.Sleep(cd.repollInterval)
 	}
 }
